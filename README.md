@@ -22,9 +22,9 @@ Chirp (Compact Hub for Instant Real-time Posting) is a simplified Twitter-like a
 chirp-redis-keyvalue-lab/
 ├── src/                     # Main source code 
 │   ├── app/                 # Application code
-│       ├── __init__.py
-│       ├── chirp_app.py     # Command-line application
-│       └── streamlit_app.py # Web application (to be implemented)
+│   │   ├── __init__.py
+│   │   ├── chirp_app.py     # Command-line application
+│   │   └── streamlit_app.py # Web application (to be implemented)
 │   └── models/              # Redis data models
 │       ├── __init__.py      
 │       └── redis_model.py   # Core Redis data model implementation
@@ -35,7 +35,7 @@ chirp-redis-keyvalue-lab/
 │   ├── run_app.py           # Application launcher
 │   └── fix_engagement.py    # Script to add engagement metrics
 ├── data/                    # Generated data
-    └── processed/           # Processed data directory
+│   └── processed/           # Processed data directory
 └── tests/
     ├── __init__.py            # (peut être un fichier vide)
     ├── conftest.py            # (celui que j'ai créé)
@@ -83,7 +83,17 @@ Process and extract English tweets from the raw .bz2 files:
 ```bash
 python3 scripts/process_jsonl.py ./data/twitter_data
 ```
-This will create a sample of English tweets in ./data/processed/english_tweets.json.
+
+#### Additional step 1 : Generating Sample Data (if needed)
+Process and extract a smaller size of English tweets as sample data :
+```bash
+# Generate sample data (20 users, 5 tweets each by default)
+python3 scripts/process_jsonl.py --generate-sample
+
+# Customize sample data generation
+python3 scripts/process_jsonl.py --generate-sample --users 30 --tweets 10
+```
+When using the ```sample_english_tweets.json``` file, you need to adapt the file name of the following commands.
 
 #### Step 2: Import Data to Redis
 After processing the Twitter data, import it into Redis:

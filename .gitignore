@@ -1,4 +1,4 @@
-# Python
+# Python specific
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,48 +16,85 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Distribution / packaging
+.Python
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+coverage_html/
+
+# Virtual environments
 venv/
 ENV/
 env/
-
-# Redis
-*.rdb
-*.aof
-dump.rdb
-appendonly.aof
-
-# Streamlit
-.streamlit/
+.env/
 
 # IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 .DS_Store
 
-# Local environment variables
-.env
-.env.local
+# Redis specific
+*.rdb
+dump.rdb
+appendonly.aof
+redis.log
 
-# Logs
-logs/
+# Project specific data - ignore large data but keep samples
+/data/processed/english_tweets.json
+/data/processed/*.json
+!/data/processed/sample_english_tweets.json
+
+# Temporary files
+.tmp/
+tmp/
+temp/
+
+# LaTeX specific
+*.aux
+*.lof
 *.log
-
-# Data files
-*.csv
-*.json
-*.xlsx
-*.xls
-*.db
-*.sqlite
-*.sqlite3
-
-# Exceptions - keep these files even if they match patterns above
-!requirements.txt
-!data/sample_output/.gitkeep
+*.lot
+*.fls
+*.out
+*.toc
+*.fdb_latexmk
+*.fmt
+*.fot
+*.cb
+*.cb2
+.*.lb
+*.dvi
+*.xdv
+*-converted-to.*
+*.ps
+*.eps
+*.tex.backup
+*.spl
+*.synctex.gz
+_minted*/
+*.pygtex
+*.pygstyle

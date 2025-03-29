@@ -1,0 +1,555 @@
+\documentclass[a4paper,11pt]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{setspace}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+
+\pagestyle{fancy}
+\fancyhf{} % Clear all header/footer fields
+
+% Define header style
+\fancyhead[L]{205.2 - Beyond relational databases}
+\fancyhead[C]{Lab 2 - Chirp}
+\fancyhead[R]{Jeremy Duc}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Set page style for first pages (title, TOC)
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \fancyfoot[C]{\thepage}%
+  \renewcommand{\headrulewidth}{0pt}%
+}
+
+% Better section formatting
+\titleformat{\section}
+{\normalfont\Large\bfseries}{\thesection}{1em}{}[\titlerule]
+
+% Better paragraph spacing
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+
+% Better table spacing
+\renewcommand{\arraystretch}{1.3}
+
+% Colors
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+
+% Code listing style
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    frame=single,
+    framesep=5pt,
+    aboveskip=10pt,
+    belowskip=10pt
+}
+\lstset{style=mystyle}
+
+% Document metadata
+\title{
+    \vspace{-1.5cm}
+    \Huge{\textbf{Report for Lab 2 : Chirp }} \\
+    \Large{205.2 - Beyond relational databases}
+}
+\author{Jeremy Duc}
+\date{30 March 2025}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\clearpage
+\pagestyle{fancy}
+\newpage
+
+\section{Introduction and Motivation}
+
+\subsection{Context}
+This report presents the design, implementation, and evaluation of Chirp (Compact Hub for Instant Real-time Posting), a simplified Twitter clone developed as part of the "205.2 Beyond relational databases" course. The project demonstrates the application of key-value database concepts using Redis, moving beyond traditional relational database paradigms to explore alternative data modeling approaches.
+
+\subsection{Project Objectives}
+The primary objectives of this laboratory project were:
+\begin{enumerate}
+    \item Learn to model a practical data-intensive application as a key-value database
+    \item Translate application requirements into implementation tasks and data modeling
+    \item Implement and interact with a key-value store from a programmatic perspective
+\end{enumerate}
+
+\subsection{Motivation}
+Social media platforms represent one of the most challenging use cases for database systems due to their high write throughput, complex data relationships, and need for real-time access. By implementing a Twitter-like service with Redis, this project provides hands-on experience with non-relational database patterns that can handle these requirements effectively. 
+
+Twitter (now X) serves as an excellent model for this exercise since it has well-defined core functionalities that lend themselves to key-value representation. The ability to post short messages, follow users, and retrieve timelines aligns well with the strengths of key-value stores like Redis, which excel at fast read/write operations and sorted collections.
+
+\newpage
+\section{Requirements Clarification and Assumptions}
+
+\subsection{Core Requirements}
+Based on the laboratory instructions, the minimal requirements for the Chirp application were:
+
+\begin{itemize}
+    \item \textbf{Following/followers}: Each user can have followers and follow other users
+    \item \textbf{Chirps}: Users can post small text-only messages in English
+    \item \textbf{Rankings}: The system must track and display various rankings:
+    \begin{itemize}
+        \item Top 5 users with highest follower counts
+        \item Top 5 users with most chirps
+        \item List of 5 latest chirps
+    \end{itemize}
+\end{itemize}
+
+\subsection{Assumptions}
+Several assumptions were made to guide the implementation:
+
+\begin{enumerate}
+    \item \textbf{Unidirectional relationship model}: Following is unidirectional, meaning if user A follows user B, it doesn't imply that B follows A
+    \item \textbf{Limited timeline size}: To prevent memory exhaustion, the timeline will be capped at 100,000 entries
+    \item \textbf{No tweet deletion}: For simplicity, the initial version doesn't support chirp deletion
+    \item \textbf{Simple authentication}: User authentication is not implemented in this version
+    \item \textbf{English-only content}: As specified in the requirements, only English chirps are considered
+    \item \textbf{Engagement metrics}: Additional engagement metrics (likes, rechirps) were added to make the application more realistic
+\end{enumerate}
+
+\subsection{Design Decisions}
+Several key decisions guided the implementation strategy:
+
+\begin{enumerate}
+    \item \textbf{Python as primary language}: Python was chosen for its excellent Redis library support and ability to rapidly prototype the application
+    \item \textbf{Separation of concerns}: The implementation strictly separates the data model, command-line interface, and web interface to ensure maintainability
+    \item \textbf{Streamlit for web interface}: Streamlit was selected for the web interface due to its simplicity and rapid development capabilities
+    \item \textbf{Redis as the sole database}: All data is stored in Redis with no secondary storage systems
+    \item \textbf{Unit testing}: Comprehensive unit tests were implemented to ensure reliability
+    \item \textbf{Import pipeline}: A data import pipeline was created to populate the system with realistic Twitter data
+\end{enumerate}
+
+\newpage
+\section{Data Modeling as Key-Value}
+
+\subsection{Key Design Principles}
+The data model was designed around several key principles specific to key-value databases:
+
+\begin{enumerate}
+    \item \textbf{Denormalization}: Data is intentionally duplicated where necessary to optimize read performance
+    \item \textbf{Composite keys}: Meaningful prefixes are used to organize related data
+    \item \textbf{Appropriate data structures}: Redis data types (hashes, sorted sets, lists, etc.) are selected based on access patterns
+    \item \textbf{Indexing for fast lookups}: Secondary indices are created for frequently queried attributes
+    \item \textbf{Score-based sorting}: Timestamps and counts are used as scores in sorted sets for efficient ranking
+\end{enumerate}
+
+\subsection{Data Models}
+
+\subsubsection{User Model}
+Users are modeled using Redis hashes with the key pattern \texttt{users:\{user\_id\}}:
+
+\begin{lstlisting}[language=Python, caption=User data structure in Redis]
+# User hash example (users:123456789)
+{
+    "username": "testuser",
+    "name": "Test User",
+    "follower_count": 100,
+    "following_count": 50,
+    "chirp_count": 200,
+    "created_at": "Mon Apr 01 12:00:00 +0000 2025",
+    "profile_image": "https://example.com/image.jpg"
+}
+\end{lstlisting}
+
+For quick username lookups, a separate hash maps usernames to user IDs:
+
+\begin{lstlisting}[language=Python, caption=Username to user ID mapping]
+# Username index (usernames)
+{
+    "testuser": "123456789",
+    "anotheruser": "987654321",
+    ...
+}
+\end{lstlisting}
+
+\subsubsection{Chirp Model}
+Chirps (tweets) are stored as hashes with the key pattern \texttt{chirp:\{chirp\_id\}}:
+
+\begin{lstlisting}[language=Python, caption=Chirp data structure in Redis]
+# Chirp hash example (chirp:987654321)
+{
+    "text": "This is a test chirp!",
+    "user_id": "123456789",
+    "username": "testuser",
+    "created_at": "Mon Apr 01 12:30:00 +0000 2025",
+    "lang": "en",
+    "favorite_count": 10,
+    "retweet_count": 5
+}
+\end{lstlisting}
+
+\subsubsection{Timeline and Rankings}
+Redis sorted sets are used for the timeline and user rankings:
+
+\begin{lstlisting}[language=Python, caption=Timeline and ranking data structures]
+# Global timeline (chirps:timeline)
+# Format: chirp_id -> timestamp
+# Sorted by timestamp for chronological order
+{
+    "987654321": 1712055000.0,
+    "987654322": 1712055060.0,
+    ...
+}
+
+# Top users by followers (users:top_followers)
+# Format: user_id -> follower_count
+# Sorted by follower count
+{
+    "123456789": 100,
+    "987654321": 200,
+    ...
+}
+
+# Top users by chirp count (users:top_posters)
+# Format: user_id -> chirp_count
+# Sorted by chirp count
+{
+    "123456789": 200,
+    "987654321": 150,
+    ...
+}
+\end{lstlisting}
+
+\subsection{Data Relationships}
+Relationships between entities are modeled through:
+
+\begin{enumerate}
+    \item \textbf{Reference by ID}: Chirps contain user\_id to establish ownership
+    \item \textbf{Denormalized fields}: Usernames are duplicated in chirp records for performance
+    \item \textbf{Counters}: Follower/following counts are maintained in user records
+    \item \textbf{Sorted sets}: Used to maintain relationships with additional metadata (timestamps, counts)
+\end{enumerate}
+
+\newpage
+\section{Software Architecture and Functionalities}
+
+\subsection{System Architecture}
+The Chirp application is organized into a layered architecture:
+
+\begin{figure}[H]
+    \centering
+    \begin{tabular}{|c|}
+        \hline
+        \textbf{Presentation Layer} \\
+        Command-line Interface (CLI) / Streamlit Web Interface \\
+        \hline
+        \textbf{Application Layer} \\
+        ChirpApp (Business Logic) \\
+        \hline
+        \textbf{Data Access Layer} \\
+        ChirpRedisModel (Data Model) \\
+        \hline
+        \textbf{Database} \\
+        Redis \\
+        \hline
+    \end{tabular}
+    \caption{Architectural layers of the Chirp application}
+\end{figure}
+
+The project is structured as follows:
+
+\begin{verbatim}
+chirp-redis-keyvalue-lab/
+|-- src/                     # Main source code 
+|   |-- app/                 # Application code
+|   |   |-- __init__.py
+|   |   |-- chirp_app.py     # Command-line application
+|   |   `-- streamlit_app.py # Web application
+|   `-- models/              # Redis data models
+|       |-- __init__.py      
+|       `-- redis_model.py   # Core Redis data model implementation
+|-- scripts/                 # Utility scripts
+|   |-- import_data.py       # Data import script
+|   |-- process_jsonl.py     # Data processing script
+|   |-- reset_db.py          # Database reset script
+|   |-- run_app.py           # Application launcher
+|   `-- fix_engagement.py    # Script to add engagement metrics
+|-- data/                    # Generated data
+|   `-- processed/           # Processed data directory
+`-- tests/                   # Test suite
+    |-- __init__.py
+    |-- conftest.py
+    |-- test_redis_model.py
+    |-- test_import_data.py
+    `-- test_streamlit_app.py
+\end{verbatim}
+
+\subsection{Core Components}
+
+\subsubsection{Data Model (ChirpRedisModel)}
+The data model class encapsulates all interactions with Redis, providing an abstraction layer for the application logic:
+
+\begin{lstlisting}[language=Python, caption=Key methods in the ChirpRedisModel class]
+class ChirpRedisModel:
+    # Core methods
+    def import_user(self, user_data): ...
+    def import_chirp(self, chirp_data): ...
+    def get_latest_chirps(self, count=5): ...
+    def get_top_users_by_followers(self, count=5): ...
+    def get_top_posters(self, count=5): ...
+    def post_chirp(self, user_id, text): ...
+    def like_chirp(self, chirp_id): ...
+    def rechirp(self, chirp_id): ...
+    def add_user(self, username, name, profile_image=''): ...
+    def get_top_liked_chirps(self, count=5): ...
+    def get_top_rechirped_chirps(self, count=5): ...
+    def reset_db(self): ...
+\end{lstlisting}
+
+\subsubsection{Command-line Interface (ChirpApp)}
+The CLI provides an interactive interface to the Chirp functionality:
+
+\begin{lstlisting}[language=Python, caption=ChirpApp class structure]
+class ChirpApp:
+    def __init__(self, host='localhost', port=6379, db=0): ...
+    def display_welcome(self): ...
+    def display_help(self): ...
+    def format_chirp(self, chirp): ...
+    def format_user(self, user): ...
+    def display_latest_chirps(self): ...
+    def display_top_followers(self): ...
+    def display_top_posters(self): ...
+    def post_new_chirp(self, username, text): ...
+    def like_chirp(self, chirp_id): ...
+    def rechirp(self, chirp_id): ...
+    def add_new_user(self, username, name): ...
+    def display_top_liked(self): ...
+    def display_top_rechirped(self): ...
+    def run(self): ...
+\end{lstlisting}
+
+\subsubsection{Web Interface (Streamlit)}
+The Streamlit app provides a user-friendly web interface:
+
+\begin{lstlisting}[language=Python, caption=Streamlit app structure]
+# Initialize the Redis model
+@st.cache_resource
+def get_model(): ...
+
+# Main page components
+st.title("Chirp")
+st.subheader("Compact Hub for Instant Real-time Posting")
+
+# Navigation
+page = st.sidebar.radio("Go to", ["Home", "Post a Chirp", "Top Users", "About"])
+
+# Page implementations (Home, Post a Chirp, Top Users, About)
+if page == "Home":
+    # Display latest chirps, most liked, most rechirped
+    ...
+elif page == "Post a Chirp":
+    # Form to post new chirps or add users
+    ...
+elif page == "Top Users":
+    # Display top users by followers and chirps
+    ...
+elif page == "About":
+    # About page content
+    ...
+\end{lstlisting}
+
+\subsection{Data Flow}
+
+\subsubsection{Posting a New Chirp}
+The process of posting a new chirp involves:
+
+\begin{enumerate}
+    \item The user submits text content via CLI or web interface
+    \item The application layer validates the input and calls the data model
+    \item The data model:
+        \begin{itemize}
+            \item Generates a unique chirp ID based on timestamp
+            \item Creates a chirp hash with the text, user information, and metadata
+            \item Adds the chirp to the timeline sorted set with the timestamp as score
+            \item Increments the user's chirp count
+            \item Updates the top posters ranking
+        \end{itemize}
+    \item The application confirms the operation with feedback to the user
+\end{enumerate}
+
+\subsubsection{Retrieving Latest Chirps}
+When fetching the latest chirps:
+
+\begin{enumerate}
+    \item The application requests latest chirps from the data model
+    \item The data model:
+        \begin{itemize}
+            \item Queries the timeline sorted set for the most recent chirp IDs
+            \item Retrieves the full chirp data for each ID
+            \item Formats and returns the complete chirp objects
+        \end{itemize}
+    \item The application layer formats the chirps for display
+    \item The interface presents the formatted chirps to the user
+\end{enumerate}
+
+\subsection{Data Import Pipeline}
+A data import pipeline was developed to process Twitter data:
+
+\begin{enumerate}
+    \item \textbf{processing.py} - Extracts English tweets from compressed JSON files
+    \item \textbf{import\_data.py} - Filters and imports tweets into Redis
+    \item \textbf{fix\_engagement.py} - Adds realistic engagement metrics
+\end{enumerate}
+
+\subsection{Implemented Functionalities}
+
+\subsubsection{Core Features}
+\begin{itemize}
+    \item User profile management (creation, statistics)
+    \item Posting new chirps (text-only messages)
+    \item Viewing latest chirps timeline
+    \item Viewing top users by followers
+    \item Viewing top users by post count
+\end{itemize}
+
+\subsubsection{Additional Features}
+\begin{itemize}
+    \item Engagement metrics (likes, rechirps)
+    \item Top chirps by engagement (most liked, most rechirped)
+    \item Web interface with Streamlit
+    \item Data import capabilities
+    \item Database reset functionality
+\end{itemize}
+
+\newpage
+\section{Testing}
+
+\subsection{Testing Strategy}
+A comprehensive testing approach was implemented with:
+
+\begin{itemize}
+    \item Unit tests for the Redis model
+    \item Import functionality tests
+    \item Web interface tests using mocks
+\end{itemize}
+
+The testing framework uses:
+
+\begin{itemize}
+    \item pytest as the test runner
+    \item fakeredis for Redis mocking
+    \item unittest.mock for additional mocking
+    \item pytest-cov for coverage reporting
+\end{itemize}
+
+\subsection{Test Coverage}
+The test suite covers:
+
+\begin{itemize}
+    \item Core data model operations
+    \item Data import functionality
+    \item User and chirp management
+    \item Timeline and ranking features
+    \item Engagement functionality
+\end{itemize}
+
+\newpage
+\section{Conclusion and Future Work}
+
+\subsection{Achievements}
+This project successfully implemented:
+
+\begin{itemize}
+    \item A comprehensive key-value data model for a social media application
+    \item Efficient data structures for timeline, user management, and rankings
+    \item Both command-line and web interfaces
+    \item Data import functionality
+    \item Additional engagement features
+\end{itemize}
+
+The implementation demonstrates:
+
+\begin{itemize}
+    \item Effective use of Redis data structures (hashes, sorted sets)
+    \item Appropriate denormalization strategies
+    \item Performance optimization through careful key design
+    \item Clean separation of concerns in architecture
+\end{itemize}
+
+\subsection{Challenges and Limitations}
+Several challenges were encountered:
+
+\begin{itemize}
+    \item Modeling relationships in a key-value store requires denormalization
+    \item Managing sorted sets for rankings requires careful transaction management
+    \item Limited options for complex queries compared to relational databases
+    \item Memory consumption of denormalized data
+\end{itemize}
+
+Current limitations of the implementation:
+
+\begin{itemize}
+    \item No support for media content (images, videos)
+    \item Limited user authentication and security
+    \item No support for hashtags or mentions
+    \item No support for chirp deletion or editing
+    \item Limited search capabilities
+\end{itemize}
+
+\subsection{Future Work}
+Potential improvements for future iterations:
+
+\begin{itemize}
+    \item Implementing a follow/unfollow mechanism
+    \item Adding personalized user timelines
+    \item Supporting hashtags and topic trending
+    \item Implementing user mentions and notifications
+    \item Adding search functionality
+    \item Supporting chirp deletion and editing
+    \item Improving security with authentication
+    \item Implementing data sharding for scalability
+    \item Adding media content support
+\end{itemize}
+
+\subsection{Lessons Learned}
+This project provided valuable insights into:
+
+\begin{itemize}
+    \item Non-relational data modeling approaches
+    \item Performance implications of different Redis data structures
+    \item Trade-offs between normalization and query performance
+    \item Importance of key design in key-value databases
+    \item Benefits and limitations of key-value stores for social media applications
+\end{itemize}
+
+\subsection{Conclusion}
+The Chirp project demonstrates that key-value databases like Redis can effectively support core social media functionalities with excellent performance characteristics. The implementation successfully met all the laboratory requirements while providing additional features to enhance the application's realism and usability.
+
+The denormalized data model and careful selection of Redis data structures enabled efficient operations for timeline retrieval, user rankings, and chirp management. This approach highlights the strengths of key-value databases in handling high-throughput, real-time social media scenarios, while also illustrating the design considerations necessary when moving beyond traditional relational database models.
+
+\end{document}
