@@ -6,6 +6,7 @@ Redis Data Model for the Chirp application
 import json
 import redis
 import time
+import random
 from datetime import datetime
 
 class ChirpRedisModel:
@@ -75,6 +76,10 @@ class ChirpRedisModel:
         # Import the user first
         self.import_user(chirp_data['user'])
         
+        # Ensure favorite_count and retweet_count have values and are integers
+        favorite_count = int(chirp_data.get('favorite_count', 0))
+        retweet_count = int(chirp_data.get('retweet_count', 0))
+        
         # Create the chirp
         chirp_hash = {
             "text": chirp_data['text'],
@@ -82,8 +87,8 @@ class ChirpRedisModel:
             "username": chirp_data['user']['screen_name'],
             "created_at": chirp_data['created_at'],
             "lang": chirp_data['lang'],
-            "favorite_count": chirp_data['favorite_count'],
-            "retweet_count": chirp_data['retweet_count']
+            "favorite_count": favorite_count,
+            "retweet_count": retweet_count
         }
         self.redis.hset(f"chirp:{chirp_id}", mapping=chirp_hash)
         
@@ -116,6 +121,17 @@ class ChirpRedisModel:
         for chirp_id in chirp_ids:
             chirp_data = self.redis.hgetall(f"chirp:{chirp_id}")
             if chirp_data:
+                # Ensure favorite_count and retweet_count are integers
+                try:
+                    chirp_data['favorite_count'] = int(chirp_data.get('favorite_count', 0))
+                    chirp_data['retweet_count'] = int(chirp_data.get('retweet_count', 0))
+                except (ValueError, TypeError):
+                    # If conversion fails, assign default values
+                    chirp_data['favorite_count'] = 0
+                    chirp_data['retweet_count'] = 0
+                
+                # Add chirp ID to the data
+                chirp_data['chirp_id'] = chirp_id
                 chirps.append(chirp_data)
         
         return chirps
@@ -208,6 +224,48 @@ class ChirpRedisModel:
         
         return chirp_id
     
+    def like_chirp(self, chirp_id):
+        """
+        Like a chirp (increment favorite count)
+        
+        Args:
+            chirp_id (str): Chirp ID
+            
+        Returns:
+            int: New favorite count
+            
+        Raises:
+            ValueError: If the chirp doesn't exist
+        """
+        # Check if the chirp exists
+        if not self.redis.exists(f"chirp:{chirp_id}"):
+            raise ValueError(f"Chirp {chirp_id} doesn't exist")
+            
+        # Increment the favorite count
+        new_count = self.redis.hincrby(f"chirp:{chirp_id}", "favorite_count", 1)
+        return new_count
+        
+    def rechirp(self, chirp_id):
+        """
+        Rechirp a chirp (increment retweet count)
+        
+        Args:
+            chirp_id (str): Chirp ID
+            
+        Returns:
+            int: New retweet count
+            
+        Raises:
+            ValueError: If the chirp doesn't exist
+        """
+        # Check if the chirp exists
+        if not self.redis.exists(f"chirp:{chirp_id}"):
+            raise ValueError(f"Chirp {chirp_id} doesn't exist")
+            
+        # Increment the retweet count
+        new_count = self.redis.hincrby(f"chirp:{chirp_id}", "retweet_count", 1)
+        return new_count
+    
     def add_user(self, username, name, profile_image=''):
         """
         Add a new user to the database
@@ -253,3 +311,97 @@ class ChirpRedisModel:
         self.redis.zadd("users:top_posters", {user_id: 0})
         
         return user_id
+    
+    def get_top_liked_chirps(self, count=5):
+        """
+        Get chirps with the most likes
+        
+        Args:
+            count (int): Number of chirps to retrieve
+            
+        Returns:
+            list: List of chirps
+        """
+        # Get all chirps
+        chirp_keys = self.redis.keys("chirp:*")
+        
+        # Create temporary sorted set for ranking
+        temp_key = "temp:top_liked"
+        pipe = self.redis.pipeline()
+        
+        # Delete existing temporary key if it exists
+        pipe.delete(temp_key)
+        
+        # Add each chirp to the temporary sorted set with its favorite count as score
+        for key in chirp_keys:
+            favorite_count = int(self.redis.hget(key, "favorite_count") or 0)
+            pipe.zadd(temp_key, {key.split(":", 1)[1]: favorite_count})
+        
+        # Execute the pipeline
+        pipe.execute()
+        
+        # Get the top chirps by likes
+        top_chirp_ids = self.redis.zrevrange(temp_key, 0, count - 1)
+        
+        # Clean up temporary key
+        self.redis.delete(temp_key)
+        
+        # Get the full chirp data
+        top_chirps = []
+        for chirp_id in top_chirp_ids:
+            chirp_data = self.redis.hgetall(f"chirp:{chirp_id}")
+            if chirp_data:
+                # Convert engagement metrics to integers
+                chirp_data['favorite_count'] = int(chirp_data.get('favorite_count', 0))
+                chirp_data['retweet_count'] = int(chirp_data.get('retweet_count', 0))
+                chirp_data['chirp_id'] = chirp_id
+                top_chirps.append(chirp_data)
+        
+        return top_chirps
+
+    def get_top_rechirped_chirps(self, count=5):
+        """
+        Get chirps with the most retweets
+        
+        Args:
+            count (int): Number of chirps to retrieve
+            
+        Returns:
+            list: List of chirps
+        """
+        # Get all chirps
+        chirp_keys = self.redis.keys("chirp:*")
+        
+        # Create temporary sorted set for ranking
+        temp_key = "temp:top_rechirped"
+        pipe = self.redis.pipeline()
+        
+        # Delete existing temporary key if it exists
+        pipe.delete(temp_key)
+        
+        # Add each chirp to the temporary sorted set with its retweet count as score
+        for key in chirp_keys:
+            retweet_count = int(self.redis.hget(key, "retweet_count") or 0)
+            pipe.zadd(temp_key, {key.split(":", 1)[1]: retweet_count})
+        
+        # Execute the pipeline
+        pipe.execute()
+        
+        # Get the top chirps by retweets
+        top_chirp_ids = self.redis.zrevrange(temp_key, 0, count - 1)
+        
+        # Clean up temporary key
+        self.redis.delete(temp_key)
+        
+        # Get the full chirp data
+        top_chirps = []
+        for chirp_id in top_chirp_ids:
+            chirp_data = self.redis.hgetall(f"chirp:{chirp_id}")
+            if chirp_data:
+                # Convert engagement metrics to integers
+                chirp_data['favorite_count'] = int(chirp_data.get('favorite_count', 0))
+                chirp_data['retweet_count'] = int(chirp_data.get('retweet_count', 0))
+                chirp_data['chirp_id'] = chirp_id
+                top_chirps.append(chirp_data)
+        
+        return top_chirps

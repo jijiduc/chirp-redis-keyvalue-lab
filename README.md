@@ -18,21 +18,33 @@ Chirp (Compact Hub for Instant Real-time Posting) is a simplified Twitter-like a
 - Additional Python packages (see requirements.txt)
 
 ## Project Structure
-chirp-redis-keyvalue-lab/\
-├── src/                  # Main source code \
-│   ├── models/           # Redis data models\
-│   ├── utils/            # Utility functions\
-│   └── app/              # Streamlit web app\
-├── scripts/              # Utility scripts\
-├── data/                 # Generated data\
-├── docs/                 # Documentation\
-└── tests/                # Unit tests
+```bash
+chirp-redis-keyvalue-lab/
+├── src/                     # Main source code 
+│   ├── models/              # Redis data models
+│   │   ├── __init__.py      
+│   │   └── redis_model.py   # Core Redis data model implementation
+│   ├── utils/               # Utility functions
+│   │   └── __init__.py
+│   └── app/                 # Application code
+│       ├── __init__.py
+│       ├── chirp_app.py     # Command-line application
+│       └── streamlit_app.py # Web application (to be implemented)
+├── scripts/                 # Utility scripts
+│   ├── import_data.py       # Data import script
+│   ├── process_jsonl.py     # Data processing script
+│   ├── reset_db.py          # Database reset script
+│   ├── run_app.py           # Application launcher
+│   └── fix_engagement.py    # Script to add engagement metrics
+└── data/                    # Generated data
+    └── processed/           # Processed data directory
+```
 
 ## Installation
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/your-username/chirp-redis-keyvalue-lab.git
+git clone https://github.com/jijiduc/chirp-redis-keyvalue-lab
 cd chirp-redis-keyvalue-lab
 ```
 2. Install Redis server (if not already installed):
@@ -47,9 +59,7 @@ sudo systemctl start redis-server
 3. Set up a Python virtual environment and install dependencies:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Linux/Mac
-# or
-venv\Scripts\activate  # On Windows
+source venv/bin/activate  # On Linux
 
 ```
 4. Install Python dependencies:
@@ -79,6 +89,7 @@ python3 scripts/import_data.py ./data/processed/english_tweets.json
 # --host HOST   : Redis host (default: localhost)
 # --port PORT   : Redis port (default: 6379)
 # --db DB       : Redis database number (default: 0)
+# --add-engagement    : Add random engagement metrics to tweets
 ```
 #### Step 3: Run the Chirp Application
 After importing data, you can run the application:
@@ -92,17 +103,19 @@ Available commands in the application:
 3. topposters - Display top 5 users with the most chirps
 4. post <username> <message> - Post a new chirp
 5. addUser <username> <name> - Add a new user
-6. help - Show help information
-7. exit - Exit the application
+6. like <chirp_id> - Like a chirp
+7. rechirp <chirp_id> - Rechirp a chirp
+8. help - Show help information
+9. exit - Exit the application
 ```
 
-### Reset the database (complementary Feature)
+### Reset the database
 To reset the Redis database:
 ```bash
 python3 scripts/reset_db.py
 ```
 
-### Running the Web App (Bonus Feature)
+### Running the Web App
 
 Launch the Streamlit web interface:
 ```bash
@@ -115,14 +128,71 @@ To run the unit tests:
 pytest
 ```
 ## Data Model
-
 The Redis data model uses various Redis data structures:
+
 - Hash structures for user and chirp data
 - Sets for following/follower relationships
 - Sorted sets for rankings (by followers, by chirps)
 - Lists for recent chirps
 
-For detailed documentation on the data model, see `docs/data_model.md`.
+Key features of the data model:
+
+- ```users:{user_id}``` - Hash containing user profile data
+- ```chirp:{chirp_id}``` - Hash containing chirp data
+- ```chirps:timeline``` - Sorted set of chirps by timestamp
+- ```users:top_followers``` - Sorted set of users by follower count
+- ```users:top_posters``` - Sorted set of users by chirp count
+- ```usernames``` - Hash mapping usernames to user IDs
+
+## Engagement Metrics
+### Understanding the Data
+When importing Twitter data, you may notice that many chirps show zero likes and retweets:
+```bash
+Copier📱 --- 5 latest chirps ---
+  [@username] - Fri Jan 01 06:59:59 +0000 2021
+  This is an example chirp
+  ♥ 0 | ↺ 0
+```
+
+This occurs because:
+
+1. Raw Twitter data often has zero engagement when collected soon after posting
+2. The default import process preserves these original values
+
+### Adding Realistic Engagement
+To make the application more realistic, you can add randomized engagement metrics to existing chirps using the provided script:
+```bash
+# Add random likes and retweets to all existing chirps
+python scripts/fix_engagement.py
+
+# Additional options:
+# --min-likes N      : Minimum number of likes (default: 5)
+# --max-likes N      : Maximum number of likes (default: 500)
+# --max-retweets N   : Maximum number of retweets (default: 200)
+# --host HOST        : Redis host (default: localhost)
+# --port PORT        : Redis port (default: 6379)
+# --db DB            : Redis database number (default: 0)
+```
+
+### Importing Data with Engagement
+When importing new data, use the ```--add-engagement``` flag to automatically add random engagement metrics:
+```bash
+# Import with randomized engagement metrics
+python scripts/import_data.py ./data/processed/english_tweets.json --add-engagement
+```
+### Interacting with Chirps
+You can also interact with chirps directly in the application:
+```bash
+# View the latest chirps to see their IDs
+latest
+
+# Like a chirp
+like <chirp_id>
+
+# Rechirp (retweet) a chirp
+rechirp <chirp_id>
+```
+These interactions will update the engagement metrics in real-time, providing a more realistic social media experience.
 
 ## Authors
 

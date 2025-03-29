@@ -31,20 +31,25 @@ class ChirpApp:
         """Display help and available commands"""
         print("\n📋 Available commands:")
         print("  1. latest - Display the 5 most recent chirps")
-        print("  2. topfollowers - Display the 5 users with the most followers")
-        print("  3. topposters - Display the 5 users with the most chirps")
-        print("  4. post <username> <message> - Post a new chirp")
-        print("  5. addUser <username> <name> - Add a new user")
-        print("  6. help - Display this help message")
-        print("  7. exit - Exit the application")
+        print("  2. topFollowers - Display the 5 users with the most followers")
+        print("  3. topPosters - Display the 5 users with the most chirps")
+        print("  4. topLiked - Display the 5 most liked chirps")
+        print("  5. topRechirped - Display the 5 most rechirped chirps")
+        print("  6. post <username> <message> - Post a new chirp")
+        print("  7. addUser <username> <name> - Add a new user")
+        print("  8. like <chirp_id> - Like a chirp")
+        print("  9. rechirp <chirp_id> - Rechirp a chirp")
+        print("  10. help - Display this help message")
+        print("  11. exit - Exit the application")
         print("\n")
     
     def format_chirp(self, chirp):
         """Format a chirp for display"""
+        chirp_id = chirp.get('chirp_id', 'unknown')
         return f"""
   [@{chirp['username']}] - {chirp['created_at']}
   {chirp['text']}
-  ♥ {chirp['favorite_count']} | ↺ {chirp['retweet_count']}
+  ♥ {chirp['favorite_count']} | ↺ {chirp['retweet_count']} | ID: {chirp_id}
         """
     
     def format_user(self, user):
@@ -63,7 +68,12 @@ class ChirpApp:
             return
         
         print("\n📱 --- 5 latest chirps ---")
-        for chirp in chirps:
+        # Get chirp IDs from timeline
+        chirp_ids = self.model.redis.zrevrange("chirps:timeline", 0, 4)
+        
+        for i, chirp in enumerate(chirps):
+            if i < len(chirp_ids):
+                chirp['chirp_id'] = chirp_ids[i]
             print(self.format_chirp(chirp))
     
     def display_top_followers(self):
@@ -105,6 +115,26 @@ class ChirpApp:
         except Exception as e:
             print(f"\n❌ Error posting chirp: {e}")
     
+    def like_chirp(self, chirp_id):
+        """Like a chirp"""
+        try:
+            new_count = self.model.like_chirp(chirp_id)
+            print(f"\n❤️ Chirp liked! New favorite count: {new_count}")
+        except ValueError as e:
+            print(f"\n❌ Error: {e}")
+        except Exception as e:
+            print(f"\n❌ Error liking chirp: {e}")
+    
+    def rechirp(self, chirp_id):
+        """Rechirp a chirp"""
+        try:
+            new_count = self.model.rechirp(chirp_id)
+            print(f"\n🔄 Chirp rechirped! New retweet count: {new_count}")
+        except ValueError as e:
+            print(f"\n❌ Error: {e}")
+        except Exception as e:
+            print(f"\n❌ Error rechirping: {e}")
+    
     def add_new_user(self, username, name):
         """Add a new user"""
         try:
@@ -120,6 +150,30 @@ class ChirpApp:
             print(f"\n❌ Error: {e}")
         except Exception as e:
             print(f"\n❌ Error creating user: {e}")
+    
+    def display_top_liked(self):
+        """Display the 5 chirps with the most likes"""
+        chirps = self.model.get_top_liked_chirps(5)
+        
+        if not chirps:
+            print("\n📭 No available chirps.")
+            return
+        
+        print("\n❤️ --- Top 5 most liked chirps ---")
+        for i, chirp in enumerate(chirps, 1):
+            print(f"{i}. {self.format_chirp(chirp)}")
+
+    def display_top_rechirped(self):
+        """Display the 5 chirps with the most rechirps"""
+        chirps = self.model.get_top_rechirped_chirps(5)
+        
+        if not chirps:
+            print("\n📭 No available chirps.")
+            return
+        
+        print("\n🔄 --- Top 5 most rechirped chirps ---")
+        for i, chirp in enumerate(chirps, 1):
+            print(f"{i}. {self.format_chirp(chirp)}")
     
     def run(self):
         """Run the application in interactive mode"""
@@ -139,11 +193,17 @@ class ChirpApp:
             elif command.lower() == "latest":
                 self.display_latest_chirps()
             
-            elif command.lower() == "topfollowers":
+            elif command.lower() == "topfollowers" or command.lower() == "topFollowers":
                 self.display_top_followers()
-            
-            elif command.lower() == "topposters":
+
+            elif command.lower() == "topposters" or command.lower() == "topPosters":
                 self.display_top_posters()
+
+            elif command.lower() == "topliked" or command.lower() == "topLiked":
+                self.display_top_liked()
+
+            elif command.lower() == "toprechirped" or command.lower() == "topRechirped":
+                self.display_top_rechirped()
             
             elif command.lower().startswith("post "):
                 # Format: post username message
@@ -153,6 +213,24 @@ class ChirpApp:
                 else:
                     _, username, text = parts
                     self.post_new_chirp(username, text)
+            
+            elif command.lower().startswith("like "):
+                # Format: like chirp_id
+                parts = command.split(" ", 1)
+                if len(parts) < 2:
+                    print("⚠️ Incorrect format. Use: like <chirp_id>")
+                else:
+                    _, chirp_id = parts
+                    self.like_chirp(chirp_id)
+            
+            elif command.lower().startswith("rechirp "):
+                # Format: rechirp chirp_id
+                parts = command.split(" ", 1)
+                if len(parts) < 2:
+                    print("⚠️ Incorrect format. Use: rechirp <chirp_id>")
+                else:
+                    _, chirp_id = parts
+                    self.rechirp(chirp_id)
             
             elif command.lower().startswith("adduser "):
                 # Format: addUser username name

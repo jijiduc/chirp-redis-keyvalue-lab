@@ -7,13 +7,14 @@ import os
 import sys
 import json
 import argparse
+import random
 from tqdm import tqdm
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.models.redis_model import ChirpRedisModel
 
-def import_data(file_path, host='localhost', port=6379, db=0, limit=None):
+def import_data(file_path, host='localhost', port=6379, db=0, limit=None, add_engagement=False):
     """
     Import data from a JSON file into Redis
     
@@ -23,6 +24,7 @@ def import_data(file_path, host='localhost', port=6379, db=0, limit=None):
         port (int): Redis port
         db (int): Redis database
         limit (int, optional): Maximum number of tweets to import
+        add_engagement (bool): Add random engagement metrics to tweets
     """
     # Initialize Redis model
     model = ChirpRedisModel(host=host, port=port, db=db)
@@ -66,6 +68,12 @@ def import_data(file_path, host='localhost', port=6379, db=0, limit=None):
     print("🚀 Importing tweets into Redis...")
     for tweet in tqdm(english_tweets, desc="⏳ Importing"):
         try:
+            # Add random engagement metrics if requested
+            if add_engagement:
+                # Add random like and retweet counts for more realistic data
+                tweet['favorite_count'] = random.randint(0, 5000000)
+                tweet['retweet_count'] = random.randint(0, 20000000)
+            
             # Import the chirp (which also imports the user)
             model.import_chirp(tweet)
             
@@ -102,7 +110,7 @@ def import_data(file_path, host='localhost', port=6379, db=0, limit=None):
     latest_chirps = model.get_latest_chirps(5)
     print("\n🕒 5 latest chirps:")
     for chirp in latest_chirps:
-        print(f"- @{chirp['username']}: {chirp['text'][:50]}...")
+        print(f"- @{chirp['username']}: {chirp['text'][:50]}... ♥ {chirp['favorite_count']} | ↺ {chirp['retweet_count']}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import Twitter data into Redis")
@@ -112,6 +120,7 @@ if __name__ == "__main__":
     parser.add_argument("--db", type=int, default=0, help="Redis database (default: 0)")
     parser.add_argument("--limit", type=int, help="Maximum number of tweets to import")
     parser.add_argument("--reset", action="store_true", help="Reset the database before importing")
+    parser.add_argument("--add-engagement", action="store_true", help="Add random engagement metrics to tweets")
     
     args = parser.parse_args()
     
@@ -122,4 +131,4 @@ if __name__ == "__main__":
         model.reset_db()
     
     # Import data
-    import_data(args.file, args.host, args.port, args.db, args.limit)
+    import_data(args.file, args.host, args.port, args.db, args.limit, args.add_engagement)
