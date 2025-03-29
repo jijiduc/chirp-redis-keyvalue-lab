@@ -21,23 +21,27 @@ Chirp (Compact Hub for Instant Real-time Posting) is a simplified Twitter-like a
 ```bash
 chirp-redis-keyvalue-lab/
 ├── src/                     # Main source code 
-│   ├── models/              # Redis data models
-│   │   ├── __init__.py      
-│   │   └── redis_model.py   # Core Redis data model implementation
-│   ├── utils/               # Utility functions
-│   │   └── __init__.py
-│   └── app/                 # Application code
+│   ├── app/                 # Application code
 │       ├── __init__.py
 │       ├── chirp_app.py     # Command-line application
 │       └── streamlit_app.py # Web application (to be implemented)
+│   └── models/              # Redis data models
+│       ├── __init__.py      
+│       └── redis_model.py   # Core Redis data model implementation
 ├── scripts/                 # Utility scripts
 │   ├── import_data.py       # Data import script
 │   ├── process_jsonl.py     # Data processing script
 │   ├── reset_db.py          # Database reset script
 │   ├── run_app.py           # Application launcher
 │   └── fix_engagement.py    # Script to add engagement metrics
-└── data/                    # Generated data
+├── data/                    # Generated data
     └── processed/           # Processed data directory
+└── tests/
+    ├── __init__.py            # (peut être un fichier vide)
+    ├── conftest.py            # (celui que j'ai créé)
+    ├── test_redis_model.py    # (celui que j'ai créé)
+    ├── test_import_data.py    # (celui que j'ai créé)
+    └── test_streamlit_app.py  # (celui que j'ai créé)
 ```
 
 ## Installation
@@ -65,6 +69,10 @@ source venv/bin/activate  # On Linux
 4. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
+
+# for dev testing
+pip install -r requirements-dev.txt
+pip install pytest-cov
 ```
 ## Usage
 
@@ -125,7 +133,11 @@ streamlit run src/app/streamlit_app.py
 
 To run the unit tests:
 ```bash
-pytest
+# without a rapport
+python3 scripts/run_tests.py
+
+# with a rapport
+python -m pytest tests/ -v --cov=src --cov=scripts --cov-report=term --cov-report=html
 ```
 ## Data Model
 The Redis data model uses various Redis data structures:
