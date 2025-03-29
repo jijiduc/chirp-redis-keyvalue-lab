@@ -63,7 +63,7 @@ pip install -r requirements.txt
 
 Run the data import script to load data into Redis:
 ```bash
-python scripts/import_data.py
+python3 scripts/import_data.py ./twitter_data
 ```
 
 ### Running the Web App (Bonus Feature)
