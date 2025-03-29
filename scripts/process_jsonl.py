@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script pour traiter les fichiers de tweets au format JSONL compressés en bz2
+Script to process JSONL tweet files compressed in bz2 format
 """
 
 import json
@@ -9,62 +9,62 @@ import os
 from pathlib import Path
 
 def process_jsonl_bz2_files(input_dir, output_dir):
-    """Traite les fichiers JSONL compressés en bz2 et extrait les tweets en anglais"""
-    # Créer le répertoire de sortie
+    """Process JSONL files compressed in bz2 and extract English tweets"""
+    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
-    # Trouver tous les fichiers .bz2
+    # Find all .bz2 files
     bz2_files = list(Path(input_dir).glob("*.json.bz2"))
-    print(f"Trouvé {len(bz2_files)} fichiers .bz2")
+    print(f"🔍 Found {len(bz2_files)} .bz2 files")
     
     if not bz2_files:
-        print(f"Aucun fichier .bz2 trouvé dans {input_dir}")
+        print(f"❌ No .bz2 files found in {input_dir}")
         return
     
-    # Traiter chaque fichier
+    # Process each file
     all_english_tweets = []
     for file_path in bz2_files:
-        print(f"Traitement de {file_path}...")
+        print(f"⏳ Processing {file_path}...")
         try:
             english_tweets_in_file = 0
             
-            # Ouvrir le fichier bz2 et lire ligne par ligne
+            # Open the bz2 file and read line by line
             with bz2.open(file_path, 'rt', encoding='utf-8') as f:
                 for line in f:
                     line = line.strip()
-                    if not line:  # Ignorer les lignes vides
+                    if not line:  # Ignore empty lines
                         continue
                     
                     try:
-                        # Analyser chaque ligne comme un objet JSON indépendant
+                        # Parse each line as an independent JSON object
                         tweet = json.loads(line)
                         
-                        # Vérifier si le tweet est en anglais
+                        # Check if the tweet is in English
                         if tweet.get('lang') == 'en':
                             all_english_tweets.append(tweet)
                             english_tweets_in_file += 1
                     except json.JSONDecodeError as je:
-                        print(f"  Erreur de décodage JSON dans {file_path}: {je}")
+                        print(f"  ⚠️ JSON decoding error in {file_path}: {je}")
                         continue
             
-            print(f"  {english_tweets_in_file} tweets en anglais trouvés dans {file_path.name}")
+            print(f"  📊 {english_tweets_in_file} English tweets found in {file_path.name}")
         
         except Exception as e:
-            print(f"Erreur lors du traitement de {file_path}: {e}")
+            print(f"❌ Error processing {file_path}: {e}")
     
-    # Sauvegarder les résultats
-    print(f"Total: {len(all_english_tweets)} tweets en anglais")
+    # Save results
+    print(f"📈 Total: {len(all_english_tweets)} English tweets")
     
     if all_english_tweets:
-        sample_size = min(1000, len(all_english_tweets))
-        sample_file = os.path.join(output_dir, "english_sample.json")
+        # Save all tweets to a file instead of just a sample
+        all_tweets_file = os.path.join(output_dir, "english_tweets.json")
         
-        with open(sample_file, 'w', encoding='utf-8') as f:
-            json.dump(all_english_tweets[:sample_size], f, ensure_ascii=False, indent=2)
+        with open(all_tweets_file, 'w', encoding='utf-8') as f:
+            json.dump(all_english_tweets, f, ensure_ascii=False, indent=2)
         
-        print(f"Échantillon de {sample_size} tweets sauvegardé dans {sample_file}")
+        print(f"💾 All {len(all_english_tweets)} English tweets saved in {all_tweets_file}")
     else:
-        print("Aucun tweet en anglais trouvé pour créer un échantillon.")
+        print("📭 No English tweets found to save.")
 
 if __name__ == "__main__":
     import sys

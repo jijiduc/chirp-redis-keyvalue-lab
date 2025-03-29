@@ -49,9 +49,8 @@ sudo systemctl start redis-server
 python -m venv venv
 source venv/bin/activate  # On Linux/Mac
 # or
-# venv\Scripts\activate  # On Windows
+venv\Scripts\activate  # On Windows
 
-pip install -r requirements.txt
 ```
 4. Install Python dependencies:
 ```bash
@@ -59,11 +58,48 @@ pip install -r requirements.txt
 ```
 ## Usage
 
-### Importing Data
+### Data Processing and Importing
 
-Run the data import script to load data into Redis:
+#### Step 1: Process Twitter Data
+Process and extract English tweets from the raw .bz2 files:
 ```bash
-python3 scripts/import_data.py ./twitter_data
+python3 scripts/process_jsonl.py ./data/twitter_data
+```
+This will create a sample of English tweets in ./data/processed/english_tweets.json.
+
+#### Step 2: Import Data to Redis
+After processing the Twitter data, import it into Redis:
+```bash
+# Import data from the processed JSON file
+python3 scripts/import_data.py ./data/processed/english_tweets.json
+
+# Optional flags:
+# --limit N     : Import only N tweets (useful for testing)
+# --reset       : Reset the database before importing
+# --host HOST   : Redis host (default: localhost)
+# --port PORT   : Redis port (default: 6379)
+# --db DB       : Redis database number (default: 0)
+```
+#### Step 3: Run the Chirp Application
+After importing data, you can run the application:
+```bash
+python3 scripts/run_app.py
+```
+Available commands in the application:
+```bash
+1. latest - Show the 5 most recent chirps
+2. topfollowers - Display top 5 users with the most followers
+3. topposters - Display top 5 users with the most chirps
+4. post <username> <message> - Post a new chirp
+5. addUser <username> <name> - Add a new user
+6. help - Show help information
+7. exit - Exit the application
+```
+
+### Reset the database (complementary Feature)
+To reset the Redis database:
+```bash
+python3 scripts/reset_db.py
 ```
 
 ### Running the Web App (Bonus Feature)
