@@ -37,11 +37,11 @@ chirp-redis-keyvalue-lab/
 ├── data/                    # Generated data
 │   └── processed/           # Processed data directory
 └── tests/
-    ├── __init__.py            # (peut être un fichier vide)
-    ├── conftest.py            # (celui que j'ai créé)
-    ├── test_redis_model.py    # (celui que j'ai créé)
-    ├── test_import_data.py    # (celui que j'ai créé)
-    └── test_streamlit_app.py  # (celui que j'ai créé)
+    ├── __init__.py            # 
+    ├── conftest.py            # Test script
+    ├── test_redis_model.py    # Tests for Redis model
+    ├── test_import_data.py    # Tests for the import of datas
+    └── test_streamlit_app.py  # Test for the Web App
 ```
 
 ## Installation
@@ -147,7 +147,7 @@ To run the unit tests:
 python3 scripts/run_tests.py
 
 # with a rapport
-python -m pytest tests/ -v --cov=src --cov=scripts --cov-report=term --cov-report=html
+python3 -m pytest tests/ -v --cov=src --cov=scripts --cov-report=term --cov-report=html
 ```
 ## Data Model
 The Redis data model uses various Redis data structures:
@@ -216,9 +216,9 @@ rechirp <chirp_id>
 ```
 These interactions will update the engagement metrics in real-time, providing a more realistic social media experience.
 
-## Authors
+## Author
 
-- Duc Jeremy
+[Jeremy Duc](https://github.com/jijiduc)
 
 ## License
 

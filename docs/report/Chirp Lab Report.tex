@@ -113,6 +113,77 @@ Social media platforms represent one of the most challenging use cases for datab
 
 Twitter (now X) serves as an excellent model for this exercise since it has well-defined core functionalities that lend themselves to key-value representation. The ability to post short messages, follow users, and retrieve timelines aligns well with the strengths of key-value stores like Redis, which excel at fast read/write operations and sorted collections.
 
+\section{Project Repository}
+
+\subsection{Repository Link}
+The complete codebase for this project is available at:
+\begin{center}
+\url{https://github.com/jijiduc/chirp-redis-keyvalue-lab}
+\end{center}
+
+\subsection{Repository Structure}
+The repository follows a clean, professional organization with the following structure:
+\begin{verbatim}
+chirp-redis-keyvalue-lab/
+|-- README.md                 # Installation and usage instructions
+|-- requirements.txt          # Main dependencies
+|-- requirements-dev.txt      # Development dependencies
+|-- src/                      # Main source code 
+|   |-- app/                  # Application code
+|   |   |-- __init__.py
+|   |   |-- chirp_app.py      # Command-line application
+|   |   `-- streamlit_app.py  # Web application
+|   `-- models/               # Redis data models
+|       |-- __init__.py      
+|       `-- redis_model.py    # Core Redis data model implementation
+|-- scripts/                  # Utility scripts
+|   |-- import_data.py        # Data import script
+|   |-- process_jsonl.py      # Data processing script
+|   |-- reset_db.py           # Database reset script
+|   |-- run_app.py            # Application launcher
+|   |-- run_tests.py          # Test runner
+|   `-- fix_engagement.py     # Script to add engagement metrics
+|-- data/                     # Generated data
+|   `-- processed/            # Processed data directory
+`-- tests/                    # Test suite
+    |-- __init__.py
+    |-- conftest.py           # Pytest configuration
+    |-- test_redis_model.py   # Tests for Redis model
+    |-- test_import_data.py   # Tests for data import
+    `-- test_streamlit_app.py # Tests for web interface
+\end{verbatim}
+
+\subsection{Installation and Usage}
+To install and run the application:
+
+\begin{lstlisting}[language=bash, caption=Installation and setup commands]
+# Clone the repository
+git clone https://github.com/jijiduc/chirp-redis-keyvalue-lab.git
+cd chirp-redis-keyvalue-lab
+
+# Install required dependencies
+pip install -r requirements.txt
+
+# Optional: Install development dependencies for testing
+pip install -r requirements-dev.txt
+
+# Start Redis (if not running)
+sudo systemctl start redis-server  # On Linux
+# Or manually: redis-server
+
+# Process and import sample data
+python scripts/process_jsonl.py --generate-sample
+python scripts/import_data.py ./data/processed/sample_english_tweets.json --add-engagement
+
+# Run the command line application
+python scripts/run_app.py
+
+# Run the web interface
+streamlit run src/app/streamlit_app.py
+\end{lstlisting}
+
+The README.md file in the repository contains comprehensive instructions for setting up the development environment, running the application, and executing the test suite. It also provides detailed information about the available commands and how to interact with the application.
+
 \newpage
 \section{Requirements Clarification and Assumptions}
 
@@ -161,11 +232,40 @@ Several key decisions guided the implementation strategy:
 The data model was designed around several key principles specific to key-value databases:
 
 \begin{enumerate}
-    \item \textbf{Denormalization}: Data is intentionally duplicated where necessary to optimize read performance
-    \item \textbf{Composite keys}: Meaningful prefixes are used to organize related data
-    \item \textbf{Appropriate data structures}: Redis data types (hashes, sorted sets, lists, etc.) are selected based on access patterns
-    \item \textbf{Indexing for fast lookups}: Secondary indices are created for frequently queried attributes
-    \item \textbf{Score-based sorting}: Timestamps and counts are used as scores in sorted sets for efficient ranking
+    \item \textbf{Denormalization}: Data is intentionally duplicated where necessary to optimize read performance. For example:
+    \begin{itemize}
+        \item Username is stored in both user records and chirp records to avoid additional lookups
+        \item Follower and chirp counts are stored in user records instead of being calculated on demand
+        \item Engagement metrics (likes, retweets) are stored directly in chirp records
+    \end{itemize}
+    
+    \item \textbf{Composite keys}: Meaningful prefixes are used to organize related data:
+    \begin{itemize}
+        \item \texttt{users:\{user\_id\}} for user profiles
+        \item \texttt{chirp:\{chirp\_id\}} for individual posts
+        \item \texttt{users:top\_followers} for follower rankings
+        \item \texttt{chirps:timeline} for the global timeline
+    \end{itemize}
+    
+    \item \textbf{Appropriate data structures}: Redis data types are selected based on access patterns:
+    \begin{itemize}
+        \item Hashes for complex entities (users, chirps)
+        \item Sorted sets for rankings and timeline (with timestamp or count as score)
+        \item Regular hash for username-to-ID mapping
+    \end{itemize}
+    
+    \item \textbf{Indexing for fast lookups}: Secondary indices are created for frequently queried attributes:
+    \begin{itemize}
+        \item Username-to-ID mapping for quick user lookups
+        \item Temporary sorted sets for engagement-based rankings
+    \end{itemize}
+    
+    \item \textbf{Score-based sorting}: Timestamps and counts are used as scores in sorted sets for efficient ranking:
+    \begin{itemize}
+        \item Timestamps for chronological timeline sorting
+        \item Follower counts for popularity ranking
+        \item Engagement metrics for trending content
+    \end{itemize}
 \end{enumerate}
 
 \subsection{Data Models}
@@ -254,6 +354,8 @@ Relationships between entities are modeled through:
     \item \textbf{Counters}: Follower/following counts are maintained in user records
     \item \textbf{Sorted sets}: Used to maintain relationships with additional metadata (timestamps, counts)
 \end{enumerate}
+
+This approach differs from traditional relational databases where relationships would be maintained through foreign keys and joins. In our Redis implementation, denormalization plays a critical role in achieving performance at scale. The trade-off is increased storage requirements and the need to ensure data consistency when updating records (for example, when a user posts a new chirp, we must update both the timeline and the user's chirp count).
 
 \newpage
 \section{Software Architecture and Functionalities}
@@ -450,33 +552,82 @@ A data import pipeline was developed to process Twitter data:
 \section{Testing}
 
 \subsection{Testing Strategy}
-A comprehensive testing approach was implemented with:
+A focused testing approach was implemented with:
 
 \begin{itemize}
-    \item Unit tests for the Redis model
-    \item Import functionality tests
-    \item Web interface tests using mocks
+    \item Unit tests for the Redis model core functionality
+    \item Integration tests for the data import process
+    \item Web interface tests using mocks for the model interactions
 \end{itemize}
 
 The testing framework uses:
 
 \begin{itemize}
     \item pytest as the test runner
-    \item fakeredis for Redis mocking
-    \item unittest.mock for additional mocking
-    \item pytest-cov for coverage reporting
+    \item fakeredis for Redis mocking to avoid actual database operations
+    \item unittest.mock for additional component mocking
+    \item pytest-cov for coverage reporting and monitoring
 \end{itemize}
+
+\subsection{Test Structure}
+The test suite is organized into three main modules:
+
+\begin{lstlisting}[language=bash, caption=Test suite organization]
+tests/
+|-- test_import_data.py     # Tests for the data import process
+|-- test_redis_model.py     # Tests for the Redis data model
+`-- test_streamlit_app.py   # Tests for the web interface
+\end{lstlisting}
 
 \subsection{Test Coverage}
-The test suite covers:
+The current test suite includes 18 tests that focus on key functionality:
 
 \begin{itemize}
-    \item Core data model operations
-    \item Data import functionality
-    \item User and chirp management
-    \item Timeline and ranking features
-    \item Engagement functionality
+    \item \textbf{Redis model (10 tests)}: Core data model operations including user and chirp management, timeline generation, and engagement functionality
+    \item \textbf{Import process (4 tests)}: Data import validation, filtering, and error handling
+    \item \textbf{Web interface (4 tests)}: Key user interactions with the Streamlit application
 \end{itemize}
+
+\subsection{Testing Results}
+The test suite covers the core functionality with a focus on the data layer. Results from the most recent test run:
+
+\begin{lstlisting}[language=bash, caption=Test execution results]
+============================================== test session starts ===============================================
+platform linux -- Python 3.10.12, pytest-7.4.0, pluggy-1.5.0
+plugins: cov-4.1.0, mock-3.11.1
+collected 18 items                                                                                              
+
+tests/test_import_data.py::TestDataImport::test_import_english_tweets_only PASSED                         [  5%]
+tests/test_import_data.py::TestDataImport::test_import_with_limit PASSED                                  [ 11%]
+tests/test_import_data.py::TestDataImport::test_import_with_engagement PASSED                             [ 16%]
+tests/test_import_data.py::TestDataImport::test_import_handles_json_decode_error PASSED                   [ 22%]
+tests/test_redis_model.py::TestChirpRedisModel::test_import_user PASSED                                   [ 27%]
+tests/test_redis_model.py::TestChirpRedisModel::test_import_chirp PASSED                                  [ 33%]
+tests/test_redis_model.py::TestChirpRedisModel::test_get_latest_chirps PASSED                             [ 38%]
+tests/test_redis_model.py::TestChirpRedisModel::test_get_top_users_by_followers PASSED                    [ 44%]
+tests/test_redis_model.py::TestChirpRedisModel::test_post_chirp PASSED                                    [ 50%]
+tests/test_redis_model.py::TestChirpRedisModel::test_like_chirp PASSED                                    [ 55%]
+tests/test_redis_model.py::TestChirpRedisModel::test_rechirp PASSED                                       [ 61%]
+tests/test_redis_model.py::TestChirpRedisModel::test_add_user PASSED                                      [ 66%]
+tests/test_redis_model.py::TestChirpRedisModel::test_get_top_liked_chirps PASSED                          [ 72%]
+tests/test_redis_model.py::TestChirpRedisModel::test_import_english_tweets_only PASSED                    [ 77%]
+tests/test_streamlit_app.py::TestStreamlitApp::test_model_get_latest_chirps PASSED                        [ 83%]
+tests/test_streamlit_app.py::TestStreamlitApp::test_model_post_chirp PASSED                               [ 88%]
+tests/test_streamlit_app.py::TestStreamlitApp::test_model_like_chirp PASSED                               [ 94%]
+tests/test_streamlit_app.py::TestStreamlitApp::test_model_add_user PASSED                                 [100%]
+\end{lstlisting}
+
+The key coverage metrics show a strategic focus on the data model:
+
+\begin{itemize}
+    \item Total tests: 18
+    \item Total execution time: 0.62 seconds
+    \item Core data model coverage: 75\%
+    \item Data import script coverage: 62\%
+    \item Overall project coverage: 23\%
+\end{itemize}
+
+This coverage pattern reflects a deliberate prioritization of testing the data layer, which contains the most business-critical logic. Future test development would focus on increasing coverage of the UI components and utility scripts.
 
 \newpage
 \section{Conclusion and Future Work}
@@ -522,18 +673,39 @@ Current limitations of the implementation:
 \end{itemize}
 
 \subsection{Future Work}
-Potential improvements for future iterations:
+Potential improvements for future iterations include both feature expansions and technical improvements:
 
 \begin{itemize}
-    \item Implementing a follow/unfollow mechanism
-    \item Adding personalized user timelines
-    \item Supporting hashtags and topic trending
-    \item Implementing user mentions and notifications
-    \item Adding search functionality
-    \item Supporting chirp deletion and editing
-    \item Improving security with authentication
-    \item Implementing data sharding for scalability
-    \item Adding media content support
+    \item \textbf{Feature enhancements:}
+    \begin{itemize}
+        \item Implementing a follow/unfollow mechanism
+        \item Adding personalized user timelines
+        \item Supporting hashtags and topic trending
+        \item Implementing user mentions and notifications
+        \item Adding search functionality
+        \item Supporting chirp deletion and editing
+        \item Adding media content support
+    \end{itemize}
+    
+    \item \textbf{Technical improvements:}
+    \begin{itemize}
+        \item Improving test coverage for UI components and utility scripts
+        \item Implementing continuous integration via GitHub Actions
+        \item Improving security with authentication
+        \item Implementing data sharding for scalability
+        \item Adding automated performance benchmarking
+        \item Implementing data backup and recovery mechanisms
+    \end{itemize}
+\end{itemize}
+
+\subsection{Performance Considerations}
+A key aspect of future work would involve benchmarking and optimizing performance:
+
+\begin{itemize}
+    \item Load testing with variable user counts and chirp volumes
+    \item Memory usage optimization techniques
+    \item Implementing caching strategies for frequently accessed data
+    \item Exploring Redis Cluster for horizontal scaling
 \end{itemize}
 
 \subsection{Lessons Learned}
@@ -551,5 +723,7 @@ This project provided valuable insights into:
 The Chirp project demonstrates that key-value databases like Redis can effectively support core social media functionalities with excellent performance characteristics. The implementation successfully met all the laboratory requirements while providing additional features to enhance the application's realism and usability.
 
 The denormalized data model and careful selection of Redis data structures enabled efficient operations for timeline retrieval, user rankings, and chirp management. This approach highlights the strengths of key-value databases in handling high-throughput, real-time social media scenarios, while also illustrating the design considerations necessary when moving beyond traditional relational database models.
+
+This project provides a solid foundation for further exploration of non-relational database technologies and their application in building scalable, real-time social platforms.
 
 \end{document}

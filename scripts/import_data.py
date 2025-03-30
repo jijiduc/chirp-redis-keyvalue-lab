@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 Script to import Twitter data into Redis
+Support for both JSON and BZ2 compressed JSON files
 """
 
 import os
 import sys
 import json
+import bz2
 import argparse
 import random
 from tqdm import tqdm
@@ -16,10 +18,10 @@ from src.models.redis_model import ChirpRedisModel
 
 def import_data(file_path, host='localhost', port=6379, db=0, limit=None, add_engagement=False):
     """
-    Import data from a JSON file into Redis
+    Import data from a JSON or BZ2 compressed JSON file into Redis
     
     Args:
-        file_path (str): Path to the JSON file containing tweets
+        file_path (str): Path to the JSON or JSON.BZ2 file containing tweets
         host (str): Redis host
         port (int): Redis port
         db (int): Redis database
@@ -34,23 +36,55 @@ def import_data(file_path, host='localhost', port=6379, db=0, limit=None, add_en
         print(f"❌ Error: The file {file_path} does not exist.")
         return
     
-    # Load JSON data
+    # Determine file type based on extension
+    file_path_str = str(file_path).lower()
+    is_bz2 = file_path_str.endswith('.bz2')
+    tweets = []
+
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            tweets = json.load(f)
-    except json.JSONDecodeError:
-        # Try to read line by line if the file is not a JSON array
-        print("🔄 Not a JSON array, trying line-by-line parsing...")
-        tweets = []
-        with open(file_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    try:
-                        tweet = json.loads(line)
-                        tweets.append(tweet)
-                    except json.JSONDecodeError:
-                        continue
+        if is_bz2:
+            print(f"🔄 Detected BZ2 compressed file, decompressing...")
+            
+            # Handle BZ2 compressed file
+            with bz2.open(file_path, 'rt', encoding='utf-8') as f:
+                # Check if it's a JSON array or line-by-line JSON
+                first_char = f.read(1)
+                f.seek(0)  # Reset to beginning
+                
+                if first_char == '[':
+                    # It's a JSON array
+                    tweets = json.load(f)
+                else:
+                    # It's line-by-line JSON
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                tweet = json.loads(line)
+                                tweets.append(tweet)
+                            except json.JSONDecodeError:
+                                continue
+        else:
+            # Handle regular JSON file
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    tweets = json.load(f)
+            except json.JSONDecodeError:
+                # Try to read line by line if the file is not a JSON array
+                print("🔄 Not a JSON array, trying line-by-line parsing...")
+                tweets = []
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line:
+                            try:
+                                tweet = json.loads(line)
+                                tweets.append(tweet)
+                            except json.JSONDecodeError:
+                                continue
+    except Exception as e:
+        print(f"❌ Error processing file: {e}")
+        return
     
     # Limit the number of tweets if necessary
     if limit and limit > 0:
@@ -114,7 +148,7 @@ def import_data(file_path, host='localhost', port=6379, db=0, limit=None, add_en
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Import Twitter data into Redis")
-    parser.add_argument("file", help="Path to the JSON file containing tweets")
+    parser.add_argument("file", help="Path to the JSON or JSON.BZ2 file containing tweets")
     parser.add_argument("--host", default="localhost", help="Redis host (default: localhost)")
     parser.add_argument("--port", type=int, default=6379, help="Redis port (default: 6379)")
     parser.add_argument("--db", type=int, default=0, help="Redis database (default: 0)")
